@@ -9,4 +9,4 @@ This package contains a collection of neat nodes that are supposed to ease your 
 This node optionally separates the generation data from the image.
 
 ## Thermal Latenator
-Makes empty Latents with 100% seed control. You can also ressed latents.
+Makes empty latents with 100% seed control. You can also reseed latents.
