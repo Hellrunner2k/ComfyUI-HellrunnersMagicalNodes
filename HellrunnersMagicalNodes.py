@@ -211,7 +211,6 @@ class thermalLatenator:
     @classmethod
     def INPUT_TYPES(s):
         s.ratio_dict = {
-    "ratios": {
         "1:1 [1024x1024 square]": {"width": 1024, "height":  1024},
         "8:5 [1216x768 landscape]": {"width": 1216, "height":  768},
         "4:3 [1152x896 landscape]": {"width": 1152, "height":  896},
@@ -227,9 +226,8 @@ class thermalLatenator:
         "9:21 [640x1536 portrait]": {"width": 640, "height":  1536},
         "5:8 [768x1216 portrait]": {"width": 768, "height":  1216},
         "9:19 [704x1472 portrait]": {"width": 704, "height":  1472}
-    }
 }
-        s.ratio_sizes = list(s.ratio_dict['ratios'].keys())
+        s.ratio_sizes = list(s.ratio_dict.keys())
         default_ratio = s.ratio_sizes[0]
 
         return {"required": {
