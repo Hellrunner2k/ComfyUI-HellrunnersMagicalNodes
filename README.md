@@ -6,4 +6,7 @@ This package contains a collection of neat nodes that are supposed to ease your 
 
 # Nodes
 ## Magical Save Node
-This node optionally separates the generation data from the image. 
+This node optionally separates the generation data from the image.
+
+## Thermal Latenator
+Makes empty Latents with 100% seed control. You can also ressed lanetnts.
