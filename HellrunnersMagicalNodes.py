@@ -22,12 +22,12 @@ class MagicalSaveNode:
     def INPUT_TYPES(s):
         return {"required": 
                 {"images": ("IMAGE", ),
-                    "output_path": ("STRING", {"default": '[time(%Y-%m-%d)]', "multiline": False}),
-                    "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                    "extension": (['png', 'jpg', 'tiff', 'bmp', 'none'],{"default":'png'}),
-                    "quality": ("INT", {"default": 95, "min": 1, "max": 100, "step": 1}),
-                    "save_gen_data_to_txt": (["true", "false"],{"default":"true"}),
-                    "save_gen_data_to_png": (["true", "false"],{"default":"false"}),
+                    "Output_Path": ("STRING", {"default": '[time(%Y-%m-%d)]', "multiline": False}),
+                    "Name": ("STRING", {"default": "ComfyUI"}),
+                    "Extension": (['png', 'jpg', 'tiff', 'bmp', 'none'],{"default":'png'}),
+                    "Quality": ("INT", {"default": 95, "min": 1, "max": 100, "step": 1}),
+                    "Save_gen_data_to_txt": (["true", "false"],{"default":"true"}),
+                    "Save_gen_data_to_png": (["true", "false"],{"default":"false"}),
                 },
                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 
@@ -40,7 +40,7 @@ class MagicalSaveNode:
 
     CATEGORY = "Hellrunner's"
 
-    def save_images(self, images, output_path='[time(%Y-%m-%d)]', filename_prefix="ComfyUI", extension='png', quality=95, save_gen_data_to_txt="true", save_gen_data_to_png="false", prompt=None, extra_pnginfo=None):
+    def save_images(self, images, Output_Path='[time(%Y-%m-%d)]', Name="ComfyUI", Extension='png', Quality=95, Save_gen_data_to_txt="true", Save_gen_data_to_png="false", prompt=None, extra_pnginfo=None):
         
         def replace_custom_time(match):
             format_code = match.group(1)
@@ -62,14 +62,14 @@ class MagicalSaveNode:
         for token, value in tokens.items():
             if token.startswith('[time('):
                 continue
-            output_path = output_path.replace(token, value)
+            Output_Path = Output_Path.replace(token, value)
 
-        path = re.sub(r'\[time\((.*?)\)\]', replace_custom_time, output_path)
+        path = re.sub(r'\[time\((.*?)\)\]', replace_custom_time, Output_Path)
 
         full_output_folder = os.path.join(self.output_dir, path)
-        if filename_prefix == "":
-            filename_prefix="ComfyUI"
-        filename = filename_prefix
+        if Name == "":
+            Name="ComfyUI"
+        filename = Name
 
         results = list()
 
@@ -84,11 +84,11 @@ class MagicalSaveNode:
             if ext == 'png' or ext == 'jpg' or ext == 'tiff' or ext == 'bmp':
                 counter+=1
         
-        file = f"{filename}_{counter:05}.{extension}"
+        file = f"{filename}_{counter:05}.{Extension}"
         
         while os.path.exists(os.path.join(full_output_folder, f"{filename}_{counter:05}.png")) or os.path.exists(os.path.join(full_output_folder, f"{filename}_{counter:05}.jpg")) or os.path.exists(os.path.join(full_output_folder, f"{filename}_{counter:05}.tiff")) or os.path.exists(os.path.join(full_output_folder, f"{filename}_{counter:05}.bmp")):
             counter += 1
-            file = f"{filename}_{counter:05}.{extension}"
+            file = f"{filename}_{counter:05}.{Extension}"
 
         for image in images:
             i = 255. * image.cpu().numpy()
@@ -155,23 +155,23 @@ class MagicalSaveNode:
 
                 txtMeta += "Workflow: " + json.dumps(extra_pnginfo["workflow"]) + "\n"
 
-            if save_gen_data_to_txt == "true" :
+            if Save_gen_data_to_txt == "true" :
                 writeTextFile(os.path.join(full_output_folder, f"{filename}_{counter:05}.txt"), txtMeta)
 
-            if save_gen_data_to_png == "false":
+            if Save_gen_data_to_png == "false":
                 pngMeta=None
 
             print(os.path.join(full_output_folder, file))
 
-            if extension == 'png':
-                if quality>9:
-                    quality=0
-                img.save(os.path.join(full_output_folder, file), pnginfo=pngMeta, compress_level=quality, optimize=True)
-            elif extension == 'jpg':
-                img.save(os.path.join(full_output_folder, file), quality=quality, optimize=True)
-            elif extension == 'tiff':
+            if Extension == 'png':
+                if Quality>9:
+                    Quality=0
+                img.save(os.path.join(full_output_folder, file), pnginfo=pngMeta, compress_level=Quality, optimize=True)
+            elif Extension == 'jpg':
+                img.save(os.path.join(full_output_folder, file), quality=Quality, optimize=True)
+            elif Extension == 'tiff':
                 img.save(os.path.join(full_output_folder, file), compression=None, description=txtMeta)
-            elif extension == 'bmp':
+            elif Extension == 'bmp':
                 img.save(os.path.join(full_output_folder, file))
 
             results.append({
@@ -180,11 +180,11 @@ class MagicalSaveNode:
                 "type": self.type
             })
             counter += 1
-            file = f"{filename}_{counter:05}.{extension}"
+            file = f"{filename}_{counter:05}.{Extension}"
         
             while os.path.exists(os.path.join(full_output_folder, file)):
                 counter += 1
-                file = f"{filename}_{counter:05}.{extension}"
+                file = f"{filename}_{counter:05}.{Extension}"
 
         return { "ui": { "images": results } }
 
