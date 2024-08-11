@@ -106,52 +106,31 @@ class MagicalSaveNode:
 
                 if extra_pnginfo["workflow"]:
                     if extra_pnginfo["workflow"]["nodes"]:
-                        positive = "empty"
-                        negative = "empty"
-                        width = -1
-                        height = -1
-                        batchSize = -1
-                        name = "empty"
-                        scheduler = "empty"
-                        steps=-1
-                        cfg=-1
-                        seed=-1
-                        denoise=-1
-                        model = "empty"
-                        vae = "empty"
-                        extra=""
+                        string = ""
 
                         for node in extra_pnginfo["workflow"]["nodes"]:
                             if 'title' in node: 
-                                if node['title'] == "Sampler":
-                                    if len(node['widgets_values']) == 7:
-                                        name, scheduler = node['widgets_values'][4], node['widgets_values'][5]
-                                        seed = node['widgets_values'][0]
-                                        steps = int(node['widgets_values'][2])
-                                        cfg = int(node['widgets_values'][3])
-                                        denoise = node['widgets_values'][6]
-                                    elif len(node['widgets_values']) == 10:
-                                        name, scheduler = node['widgets_values'][5], node['widgets_values'][6]
-                                        seed = node['widgets_values'][1]
-                                        steps = int(node['widgets_values'][3])
-                                        cfg = int(node['widgets_values'][4])
-                                elif node['title'] == "Positive":
-                                    positive = node['widgets_values'][0]
-                                elif node['title'] == "Image":
-                                    width = node['widgets_values'][0]
-                                    height = node['widgets_values'][1]
-                                    batchSize = node['widgets_values'][2]
-                                elif node['title'] == "Checkpoint":
-                                    model = node['widgets_values'][0]
-                                elif node['title'] == "VAE":
-                                    vae = node['widgets_values'][0]
-                                elif node['title'] == "Negative":
-                                    negative = node['widgets_values'][0]
+                                #print(node)
+                                if node['type'] == "KSampler":
+                                    string +=  f"{node['title']} - CFG scale: {node['widgets_values'][3]}, Steps: {node['widgets_values'][2]}, Sampler: {node['widgets_values'][4]} {node['widgets_values'][5]}, Denoise: {node['widgets_values'][6]}, Seed: {node['widgets_values'][0]}\n"
+                                elif node['type'] == "KSamplerAdvanced":
+                                    string +=  f"{node['title']} - CFG scale: {node['widgets_values'][4]}, Steps: {node['widgets_values'][3]}, Sampler: {node['widgets_values'][5]} {node['widgets_values'][6]}, Seed: {node['widgets_values'][1]}\n"
+                                elif node['type'] == "STRING":
+                                    string +=  f"{node['title']}: {node['widgets_values'][0]}\n"
+                                elif node['type'] == "EmptyLatentImage":
+                                    string += f"{node['title']} - Width: {node['widgets_values'][0]}, Height: {node['widgets_values'][1]}, Batch Size: {node['widgets_values'][2]}\n"
+                                elif node['type'] == "ThermalLatenator":
+                                    string += f"{node['title']} - Ratio Selected: {node['widgets_values'][0]}, Width Override: {node['widgets_values'][1]}, Height Override: {node['widgets_values'][2]}, Batch Count: {node['widgets_values'][3]}, Batch Size: {node['widgets_values'][4]}, First Seed: {node['widgets_values'][5]}, Batch Seeds: {node['widgets_values'][7]}\n"
+                                elif node['type'] == "CheckpointLoaderSimple":
+                                    string +=  f"{node['title']}: {node['widgets_values'][0]}\n"
+                                elif node['type'] == "VAELoader":
+                                    string +=  f"{node['title']}: {node['widgets_values'][0]}\n"
+                                elif node['type'] == "LoraLoader":
+                                    string += f"{node['title']} - LoRA Name: {node['widgets_values'][0]}, Model Strength: {node['widgets_values'][1]}, Text Encoder Strength: {node['widgets_values'][2]}\n"
                                 else:
-                                    extra += f"{node['title']}: {node['widgets_values']}\n"                            
+                                    string += f"{node['title']}: {node['widgets_values']}\n"                            
 
-                        string = f"{positive}\nNegative prompt: {negative}\nSteps: {steps}, Sampler: {name} {scheduler}, CFG scale: {cfg}, Seed: {seed}, Size: {width}x{height}, Model: {model}, VAE: {vae}, Denoising strength: {denoise}\n{extra}\n"
-                        txtMeta += string
+                        txtMeta += f"{string}\n"
 
                 txtMeta += "Workflow: " + json.dumps(extra_pnginfo["workflow"]) + "\n"
 
@@ -187,23 +166,6 @@ class MagicalSaveNode:
                 file = f"{filename}_{counter:05}.{Extension}"
 
         return { "ui": { "images": results } }
-
-
-def read_ratios():
-    p = os.path.dirname(os.path.realpath(__file__))
-    file_path = os.path.join(p, 'ratios.json')
-    with open(file_path, 'r') as file:
-        data = json.load(file)
-    ratio_sizes = list(data['ratios'].keys())
-    ratio_dict = data['ratios']
-    user_styles_path = os.path.join(folder_paths.base_path, 'user_ratios.json')
-    if os.path.isfile(user_styles_path):
-        with open(user_styles_path, 'r') as file:
-            user_data = json.load(file)
-        for ratio in user_data['ratios']:
-            ratio_dict[ratio] = user_data['ratios'][ratio]
-            ratio_sizes.append(ratio)
-    return ratio_sizes, ratio_dict
 
 
 class thermalLatenator:
