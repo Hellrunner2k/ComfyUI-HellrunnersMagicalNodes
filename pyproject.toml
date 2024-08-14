@@ -1,0 +1,14 @@
+[project]
+name = "comfyui-hellrunnersmagicalnodes"
+description = "Nodes:Magical Save Node, Thermal Latenator. This package contains a collection of neat nodes that are supposed to ease your comfy-flow."
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/Hellrunner2k/ComfyUI-HellrunnersMagicalNodes"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI-HellrunnersMagicalNodes"
+Icon = ""
