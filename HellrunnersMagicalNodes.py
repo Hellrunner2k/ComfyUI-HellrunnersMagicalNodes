@@ -128,7 +128,8 @@ class MagicalSaveNode:
                                 elif node['type'] == "LoraLoader":
                                     string += f"{node['title']} - LoRA Name: {node['widgets_values'][0]}, Model Strength: {node['widgets_values'][1]}, Text Encoder Strength: {node['widgets_values'][2]}\n"
                                 else:
-                                    string += f"{node['title']}: {node['widgets_values']}\n"                            
+                                    if 'widgets_values' in node:
+                                        string += f"{node['title']}: {node['widgets_values']}\n"                            
 
                         txtMeta += f"{string}\n"
 
