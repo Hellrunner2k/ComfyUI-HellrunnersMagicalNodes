@@ -316,8 +316,9 @@ class thermalLatenator:
             Batch_Count = len(outLatents)
             makeLatents = False
 
-        outSeeds.append(First_Seed)
-        outSeedString+=str(First_Seed)
+        if len(Seedlist) == 0:
+            Seedlist.append(First_Seed)
+        
         for i in range(Batch_Count):
             if makeLatents:
                 latent = torch.zeros([Batch_Size, 4, height // 8, width // 8])
@@ -326,14 +327,14 @@ class thermalLatenator:
             if i != 0:
                 outSeedString += "-"
 
-                newSeed = 0
-                if i < len(Seedlist):
-                    newSeed = Seedlist[i]
-                else:
-                    newSeed = random.randint(1, 1125899906842624)
+            newSeed = 0
+            if i < len(Seedlist):
+                newSeed = Seedlist[i]
+            else:
+                newSeed = random.randint(1, 1125899906842624)
 
-                outSeeds.append(newSeed)
-                outSeedString+=str(newSeed)
+            outSeeds.append(newSeed)
+            outSeedString+=str(newSeed)
         return (outLatents, outSeeds, outSeedString,)
 
 
