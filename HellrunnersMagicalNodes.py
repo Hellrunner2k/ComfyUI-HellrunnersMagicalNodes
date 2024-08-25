@@ -320,8 +320,8 @@ class thermalLatenator:
                     Seedlist.append(stripLine)
 
         if (Reseed_Latents is not None and len(Reseed_Latents)>0):
-            width = int(Reseed_Latents[0]["samples"].shape[3])
-            height = int(Reseed_Latents[0]["samples"].shape[2])
+            width = int(Reseed_Latents["samples"].shape[3] * 8)
+            height = int(Reseed_Latents["samples"].shape[2] * 8)
             outLatents = self.rebatch([Reseed_Latents], Batch_Size)[0]
             Batch_Count = len(outLatents)
             makeLatents = False
