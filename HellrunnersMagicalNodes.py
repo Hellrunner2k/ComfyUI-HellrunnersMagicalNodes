@@ -22,12 +22,12 @@ class MagicalSaveNode:
     def INPUT_TYPES(s):
         return {"required": 
                 {"images": ("IMAGE", ),
-                    "Output_Path": ("STRING", {"default": '[time(%Y-%m-%d)]', "multiline": False}),
-                    "Name": ("STRING", {"default": "ComfyUI"}),
-                    "Extension": (['png', 'jpg', 'tiff', 'bmp', 'none'],{"default":'png'}),
-                    "Quality": ("INT", {"default": 95, "min": 1, "max": 100, "step": 1}),
-                    "Save_gen_data_to_txt": (["true", "false"],{"default":"true"}),
-                    "Save_gen_data_to_png": (["true", "false"],{"default":"false"}),
+                    "Output_Path": ("STRING", {"default": '[time(%Y-%m-%d)]', "multiline": False, "tooltip":'Subfolder Path into "output"'}),
+                    "Name": ("STRING", {"default": "ComfyUI", "tooltip":'File Name'}),
+                    "Extension": (['png', 'jpg', 'tiff', 'bmp', 'none'],{"default":'png', "tooltip":'Image Type'}),
+                    "Quality": ("INT", {"default": 95, "min": 1, "max": 100, "step": 1, "tooltip":'jpg compression 1-100, png compression 0-9  (if > 9 = 0 lossless)'}),
+                    "Save_gen_data_to_txt": (["true", "false"],{"default":"true", "tooltip":'True saves meta-data based on renamed nodes (right-click -> "Title") and the comfy-flow to a text file'}),
+                    "Save_gen_data_to_png": (["true", "false"],{"default":"false", "tooltip":'True saves meta-data based on renamed nodes (right-click -> "Title") and the comfy-flow to a png image'}),
                 },
                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 
@@ -35,10 +35,10 @@ class MagicalSaveNode:
 
     RETURN_TYPES = ()
     FUNCTION = "save_images"
-
     OUTPUT_NODE = True
 
     CATEGORY = "Hellrunner's"
+    DESCRIPTION = 'Compiles meta-data based on renamed nodes (right-click -> "Title") and optionally includes it and the comfy-flow in a text file and/or a png image.'
 
     def save_images(self, images, Output_Path='[time(%Y-%m-%d)]', Name="ComfyUI", Extension='png', Quality=95, Save_gen_data_to_txt="true", Save_gen_data_to_png="false", prompt=None, extra_pnginfo=None):
         
@@ -194,20 +194,28 @@ class thermalLatenator:
         default_ratio = s.ratio_sizes[0]
 
         return {"required": {
-                             "Ratio_Selected": (s.ratio_sizes,{'default': default_ratio}),
-                             "Width_Override": ("INT", {"default": 0, "min": 0, "max": 16384}),
-                             "Height_Override": ("INT", {"default": 0, "min": 0, "max": 16384}),
-                             "Batch_Count": ("INT", {"default": 1, "min": 1, "max": 1125899906842624}),
-                             "Batch_Size": ("INT", {"default": 1, "min": 1, "max": 64}),
-                             "First_Seed":("INT:seed", {"default": 1, "min": 1, "max": 1125899906842624}),
-                             "Batch_Seeds": ("STRING", {"multiline": True, "default": ""})},
-                "optional": {"Reseed_Latents": ("LATENT", )}}
+                             "Ratio_Selected": (s.ratio_sizes,{'default': default_ratio, "tooltip":'SDXL Native resolution selection'}),
+                             "Width_Override": ("INT", {"default": 0, "min": 0, "max": 16384, "tooltip":'Overrides Width'}),
+                             "Height_Override": ("INT", {"default": 0, "min": 0, "max": 16384, "tooltip":'Overrides Height'}),
+                             "Batch_Count": ("INT", {"default": 1, "min": 1, "max": 1125899906842624, "tooltip":'Number of seeded batches'}),
+                             "Batch_Size": ("INT", {"default": 1, "min": 1, "max": 64, "tooltip":'Number of batched sub-images'}),
+                             "First_Seed":("INT:seed", {"default": 1, "min": 1, "max": 1125899906842624, "tooltip":'Initial seed'}),
+                             "Batch_Seeds": ("STRING", {"multiline": True, "default": "", "tooltip":'Seed Override for easy chaining. Can deal with hyphen separation (1234-1235) and line breaks.'})},
+                "optional": {"Reseed_Latents": ("LATENT", {"tooltip":'Input latents to be rebatched and reseeded with current seed options'})}}
 
-    RETURN_TYPES = ('LATENT','INT', 'STRING',)
-    RETURN_NAMES = ('Latents','Seeds', 'Seed String',)
-    OUTPUT_IS_LIST = (True, True, False, )
+    RETURN_TYPES = ('LATENT','INT', 'STRING', 'INT', 'INT')
+    RETURN_NAMES = ('Latents','Seeds', 'Seed String', 'Width', 'Height')
+    OUTPUT_IS_LIST = (True, True, False, False, False )
+
+    OUTPUT_TOOLTIPS = ('Latents',
+                      'Batch Seeds',
+                      'Seed String for easy chaining',
+                      'Latent Height',
+                      'Latent Width',)
+
     FUNCTION = 'gimmeLatent'
     CATEGORY = "Hellrunner's"
+    DESCRIPTION = "Latent seed and batch controller with extra information outputs, so it can be used as resolution and seed master."
 
     @staticmethod
     def get_batch(latents, list_ind, offset):
@@ -295,11 +303,11 @@ class thermalLatenator:
 
         width = Width_Override
         if Width_Override <= 0:
-            width = self.ratio_dict[Ratio_Selected]["width"]
+            width = int(self.ratio_dict[Ratio_Selected]["width"])
 
         height = Height_Override
         if Height_Override <= 0:
-            height = self.ratio_dict[Ratio_Selected]["height"]
+            height = int(self.ratio_dict[Ratio_Selected]["height"])
 
         linebreaks = Batch_Seeds.split('\n')
         Seedlist = []
@@ -312,6 +320,8 @@ class thermalLatenator:
                     Seedlist.append(stripLine)
 
         if (Reseed_Latents is not None and len(Reseed_Latents)>0):
+            width = int(Reseed_Latents[0]["samples"].shape[3])
+            height = int(Reseed_Latents[0]["samples"].shape[2])
             outLatents = self.rebatch([Reseed_Latents], Batch_Size)[0]
             Batch_Count = len(outLatents)
             makeLatents = False
@@ -335,7 +345,7 @@ class thermalLatenator:
 
             outSeeds.append(newSeed)
             outSeedString+=str(newSeed)
-        return (outLatents, outSeeds, outSeedString,)
+        return (outLatents, outSeeds, outSeedString, width, height)
 
 
 NODE_CLASS_MAPPINGS = {
