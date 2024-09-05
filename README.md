@@ -20,7 +20,7 @@ Main Pack utilizable as Comfy-Flow foundation.
 -  #### <a href="https://github.com/Hellrunner2k/References/blob/main/comfy-flows/MagicalNodes_Basic.json">Basic Generation</a>
 -  #### <a href="https://github.com/Hellrunner2k/References/blob/main/comfy-flows/MagicalNodes_Upscale.json">Load and Upscale</a>
 -  #### <a href="https://github.com/Hellrunner2k/References/blob/main/comfy-flows/MagicalNodes_Mask-Maps.json">Basic Mask-Maps</a> (and <a href="https://raw.githubusercontent.com/Hellrunner2k/References/main/comfy-flows/MaskGradB.bmp">Mask-Map</a> used)
-Tutorial Videos are comming
+Tutorial Videos are coming
 
 ## Magical Save Node
 ![simple](https://raw.githubusercontent.com/Hellrunner2k/References/main/nodes/MagicalSave.png)  
