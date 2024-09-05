@@ -9,6 +9,6 @@ Repository = "https://github.com/Hellrunner2k/ComfyUI-HellrunnersMagicalNodes"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "hellrunner"
 DisplayName = "Hellrunner's Magical Nodes"
 Icon = ""
