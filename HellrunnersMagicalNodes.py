@@ -8,9 +8,11 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import folder_paths
 import random
+import hashlib
 
 import nodes
-
+import node_helpers
+import comfy.utils
 
 class MagicalSaveNode:
     def __init__(self):
@@ -22,12 +24,14 @@ class MagicalSaveNode:
     def INPUT_TYPES(s):
         return {"required": 
                 {"images": ("IMAGE", ),
+                    "Active": ("BOOLEAN", {"default": True, "label_on":"On", "label_off":"Off", "tooltip":'Boolean On/Off Switch for better integration in complex comfy-flows'}),
                     "Output_Path": ("STRING", {"default": '[time(%Y-%m-%d)]', "multiline": False, "tooltip":'Subfolder Path into "output"'}),
                     "Name": ("STRING", {"default": "ComfyUI", "tooltip":'File Name'}),
                     "Extension": (['png', 'jpg', 'tiff', 'bmp', 'none'],{"default":'png', "tooltip":'Image Type'}),
                     "Quality": ("INT", {"default": 95, "min": 1, "max": 100, "step": 1, "tooltip":'jpg compression 1-100, png compression 0-9  (if > 9 = 0 lossless)'}),
-                    "Save_gen_data_to_txt": (["true", "false"],{"default":"true", "tooltip":'True saves meta-data based on renamed nodes (right-click -> "Title") and the comfy-flow to a text file'}),
-                    "Save_gen_data_to_png": (["true", "false"],{"default":"false", "tooltip":'True saves meta-data based on renamed nodes (right-click -> "Title") and the comfy-flow to a png image'}),
+                    "Save_gen_data_to_txt": ("BOOLEAN", {"default": True, "label_on":"On", "label_off":"Off", "tooltip":'On saves meta-data based on renamed nodes (right-click -> "Title") and the comfy-flow to a text file'}),
+                    "Save_gen_data_to_png": ("BOOLEAN", {"default": False, "label_on":"On", "label_off":"Off", "tooltip":'On saves meta-data based on renamed nodes (right-click -> "Title") and the comfy-flow to a png image'}),
+                    "Formatting": (["Human Readable"],{"default":"Human Readable", "tooltip":'Meta Data Format. Included for future expandability without node breakage'}),
                 },
                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 
@@ -40,7 +44,7 @@ class MagicalSaveNode:
     CATEGORY = "Hellrunner's"
     DESCRIPTION = 'Compiles meta-data based on renamed nodes (right-click -> "Title") and optionally includes it and the comfy-flow in a text file and/or a png image.'
 
-    def save_images(self, images, Output_Path='[time(%Y-%m-%d)]', Name="ComfyUI", Extension='png', Quality=95, Save_gen_data_to_txt="true", Save_gen_data_to_png="false", prompt=None, extra_pnginfo=None):
+    def save_images(self, images, Active, Output_Path='[time(%Y-%m-%d)]', Name="ComfyUI", Extension='png', Quality=95, Save_gen_data_to_txt=True, Save_gen_data_to_png=False, Formatting='Human Readable', prompt=None, extra_pnginfo=None):
         
         def replace_custom_time(match):
             format_code = match.group(1)
@@ -52,6 +56,9 @@ class MagicalSaveNode:
                     f.write(content)
             except OSError:
                 print(str(f"Unable to save file `{file}`"))
+
+        if not Active:
+            return ()
 
         tokens = {'[time]': str(time.time())}
 
@@ -135,10 +142,10 @@ class MagicalSaveNode:
 
                 txtMeta += "Workflow: " + json.dumps(extra_pnginfo["workflow"]) + "\n"
 
-            if Save_gen_data_to_txt == "true" :
+            if Save_gen_data_to_txt:
                 writeTextFile(os.path.join(full_output_folder, f"{filename}_{counter:05}.txt"), txtMeta)
 
-            if Save_gen_data_to_png == "false":
+            if not Save_gen_data_to_png:
                 pngMeta=None
 
             print(os.path.join(full_output_folder, file))
@@ -195,8 +202,8 @@ class thermalLatenator:
 
         return {"required": {
                              "Ratio_Selected": (s.ratio_sizes,{'default': default_ratio, "tooltip":'SDXL Native resolution selection'}),
-                             "Width_Override": ("INT", {"default": 0, "min": 0, "max": 16384, "tooltip":'Overrides Width'}),
-                             "Height_Override": ("INT", {"default": 0, "min": 0, "max": 16384, "tooltip":'Overrides Height'}),
+                             "Width_Override": ("INT", {"default": 0, "min": 0, "max": 16384, "tooltip":'>0 Overrides Width'}),
+                             "Height_Override": ("INT", {"default": 0, "min": 0, "max": 16384, "tooltip":'>0 Overrides Height'}),
                              "Batch_Count": ("INT", {"default": 1, "min": 1, "max": 1125899906842624, "tooltip":'Number of seeded batches'}),
                              "Batch_Size": ("INT", {"default": 1, "min": 1, "max": 64, "tooltip":'Number of batched sub-images'}),
                              "First_Seed":("INT:seed", {"default": 1, "min": 1, "max": 1125899906842624, "tooltip":'Initial seed'}),
@@ -210,8 +217,8 @@ class thermalLatenator:
     OUTPUT_TOOLTIPS = ('Latents',
                       'Batch Seeds',
                       'Seed String for easy chaining',
-                      'Latent Height',
-                      'Latent Width',)
+                      'Latent Width',
+                      'Latent Height',)
 
     FUNCTION = 'gimmeLatent'
     CATEGORY = "Hellrunner's"
@@ -347,13 +354,82 @@ class thermalLatenator:
             outSeedString+=str(newSeed)
         return (outLatents, outSeeds, outSeedString, width, height)
 
+class LoadMaskMap:
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
+
+    @classmethod
+    def INPUT_TYPES(s):
+        input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and (f.endswith(".bmp") or f.endswith(".BMP"))]
+        return {"required":
+                    {"image": (sorted(files), {"image_upload": True, "tooltip":'RGB Mask-Map as bmp'})}, 
+                    "optional": {
+                        "Width": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, "tooltip":'Width Override, >0 initializes scaling'}),
+                        "Height": ("INT", {"default": 0, "min": 0, "max": nodes.MAX_RESOLUTION, "step": 1, "tooltip":'Height Override, >0 initializes scaling'}),
+                        "upscale_method": (s.upscale_methods,{"default": "lanczos", "tooltip":'Upscaling method to use if scaling'})}}
+
+    CATEGORY = "Hellrunner's"
+
+    RETURN_TYPES = ("MASKMAP","MASK","MASK","MASK")
+    RETURN_NAMES = ('Mask-Map','Red (Center Piece)','Green (Theme)', 'Blue (Background)')
+    OUTPUT_TOOLTIPS = ('Mask-Map',
+                       'Red Mask (Center Piece)',
+                       'Green Mask (Theme)',
+                       'Blue Mask (Background)')
+
+    FUNCTION = 'maskIt'
+    CATEGORY = "Hellrunner's"
+    DESCRIPTION = "Open, optionally scale and split a Mask-Map bmp. Smooth gradient masks with 100% combined prompt coverage. Ready for use in one go."
+
+    def maskIt(self, image, Width, Height, upscale_method):
+        image_path = folder_paths.get_annotated_filepath(image)
+        i = node_helpers.pillow(Image.open, image_path)
+        i = node_helpers.pillow(ImageOps.exif_transpose, i)
+        if i.getbands() != ("R", "G", "B"):
+            if i.mode == 'I':
+                i = i.point(lambda i: i * (1 / 255))
+            i = i.convert("RGB")
+
+        mask = {}
+        #c = channel[0].upper()
+        for c in i.getbands():
+            mask[c] = np.array(i.getchannel(c)).astype(np.float32) / 255.0
+            mask[c] = torch.from_numpy(mask[c]).unsqueeze(0)
+            if Width > 0 or Height > 0:
+                samples = mask[c].movedim(-1,1)
+
+                if Width == 0:
+                    Width = max(1, round(samples.shape[3] * Height / samples.shape[2]))
+                elif Height == 0:
+                    Height = max(1, round(samples.shape[2] * Width / samples.shape[3]))
+
+                mask[c] = comfy.utils.common_upscale(samples, Width, Height, upscale_method, "disabled")
+                mask[c] = mask[c].movedim(1,-1)
+        return (mask, mask['R'], mask['G'], mask['B'],)
+
+    @classmethod
+    def IS_CHANGED(s, image, Width, Height, upscale_method):
+        image_path = folder_paths.get_annotated_filepath(image)
+        m = hashlib.sha256()
+        with open(image_path, 'rb') as f:
+            m.update(f.read())
+        return m.digest().hex()
+
+    @classmethod
+    def VALIDATE_INPUTS(s, image):
+        if not folder_paths.exists_annotated_filepath(image):
+            return "Invalid image file: {}".format(image)
+
+        return True
 
 NODE_CLASS_MAPPINGS = {
     "MagicalSaveNode": MagicalSaveNode, 
     "ThermalLatenator": thermalLatenator,
+    "LoadMaskMap": LoadMaskMap,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "MagicalSaveNode": "Magical Save Node", 
     "ThermalLatenator": "Thermal Latenator",
+    "LoadMaskMap": "Mask-Map Loader",
 }
