@@ -1,0 +1,14 @@
+[project]
+name = "ComfyUI-HellrunnersMagicalNodes"
+description = "Magical nodes that are meant for integration and science of course. ^^ Foundational Helpers and smart Containers that use automated functionalities to make room for creative use. A magical pack-synergy is at hand that does not require much extra clutter to make advanced techniques pop beautifully. The idea was to create universal artist's precision tools that do not care what you throw at them."
+version = "1.0"
+license = "LICENSE"
+
+[project.urls]
+Repository = "https://github.com/Hellrunner2k/ComfyUI-HellrunnersMagicalNodes"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "Hellrunner's Magical Nodes"
+Icon = ""
