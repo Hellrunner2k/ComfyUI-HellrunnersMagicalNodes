@@ -589,7 +589,7 @@ class TEAce:
             if len(mask.shape) < 3:
                 mask = mask.unsqueeze(0)
 
-            c = node_helpers.conditioning_set_values(conditioning, {"mask": mask,
+            conditioning = node_helpers.conditioning_set_values(conditioning, {"mask": mask,
                                                                     "set_area_to_bounds": set_area_to_bounds,
                                                                     "mask_strength": mask_strength})
 
