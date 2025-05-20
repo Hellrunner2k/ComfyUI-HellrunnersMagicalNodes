@@ -602,7 +602,7 @@ class BufferedEncoder:
             return time.strftime(format_code, time.localtime(time.time()))
 
         def LoRAapply(lb, inClip,inModel):
-            if (inClip == None and inModel == None) or lb==None or len(lb)==0:
+            if lb==None or len(lb)==0:
                 return (inClip,inModel)
 
             for LoRA in lb:
