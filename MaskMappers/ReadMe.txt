@@ -1,0 +1,1 @@
+Get the Substance Player to view .sbar files and make Mask-Maps ... https://helpx.adobe.com/substance-3d-player/home.html 
