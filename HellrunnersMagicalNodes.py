@@ -559,6 +559,180 @@ class MaskMapPrompt:
         return (out["Base_Prompt"],out["Base_Negative"], out["Red_Prompt"],out["Red_Negative"],out["Green_Prompt"],out["Green_Negative"],
                out["Blue_Prompt"],out["Blue_Negative"],out["Combined_Prompt"],out["Combined_Negative"],)
 
+class BufferedEncoder:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                        "Active": ("BOOLEAN", {"default": True, "label_on":"On", "label_off":"Off", "tooltip":'Boolean On/Off Switch for better integration in complex flows'}),
+                        "Output_Path": ("STRING", {"default": '[time(%Y-%m-%d)]', "multiline": False, "tooltip":'Subfolder Path into "output"'}),
+                        "Name": ("STRING", {"default": "Buffer", "tooltip":'Buffer File Name (Name.conditioning)'}),
+                        "Override": ("BOOLEAN", {"default": False, "label_on":"On", "label_off":"Off", "tooltip":'Force override the buffer'}),
+                        "text": ("STRING", {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}),
+                        "Encoder_1": (folder_paths.get_filename_list("text_encoders"), {"tooltip": "The Encoder_1 used for encoding the text."}),
+                        "use_Encoder_2": ("BOOLEAN", {"default": False, "label_on":"On", "label_off":"Off", "tooltip":'Enable second encoder'}),
+                        "Encoder_2": (folder_paths.get_filename_list("text_encoders"), {"tooltip": "The Encoder_2 used for encoding the text."}),
+                        "use_Encoder_3": ("BOOLEAN", {"default": False, "label_on":"On", "label_off":"Off", "tooltip":'Enable 3rd encoder'}),
+                        "Encoder_3": (folder_paths.get_filename_list("text_encoders"), {"tooltip": "The Encoder_3 used for encoding the text."}),
+                        "use_Encoder_4": ("BOOLEAN", {"default": False, "label_on":"On", "label_off":"Off", "tooltip":'Enable 4th encoder'}),
+                        "Encoder_4": (folder_paths.get_filename_list("text_encoders"), {"tooltip": "The Encoder_4 used for encoding the text."}),
+                        "clip_skip": ("INT", {"default": -2, "min": -128, "max": -1, "tooltip": "Last Layer"}),
+                        "model_type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace"],{"tooltip": "Model Type to load encoders for."} ),
+                        "load_device": (["default", "cpu"], {"advanced": True}),
+                        },
+                "optional":{
+                        "clip": ("CLIP", {"tooltip": "The CLIP model used for encoding the text."}),
+                        "LoRABox": ("LORABOX", {"default": None, "tooltip":'LoRABox'}),
+                        "model": ("MODEL", { "tooltip": "The model to apply the LoRABox to"}),
+                }}
+                            
+    RETURN_TYPES = ("CONDITIONING","CLIP","MODEL",)
+    RETURN_NAMES = ('CONDITIONING','CLIP or not','MODEL or not',)
+    OUTPUT_TOOLTIPS = ("Conditioning","Used Clip, if encode happens. Used for chaining encoders so loading does not happen multiple times","Used Model, if LoRABox is not empty",)
+    FUNCTION = 'energize'
+
+    CATEGORY = "Hellrunner's/Utils"
+    DESCRIPTION = "Encodes and buffers a conditioning on the hard drive. Uses that buffer if enabled."
+
+    def energize(self, Active=True, Output_Path = "[time(%Y-%m-%d)]", Name="Snip", Override=False, text="", 
+                 clip=None, Encoder_1="",use_Encoder_2=False,Encoder_2="",use_Encoder_3=False,Encoder_3="",use_Encoder_4=False,Encoder_4="",
+                 clip_skip=-2, model_type="stable_diffusion",load_device="default", LoRABox=None, model=None,): 
+
+        def replace_custom_time(match):
+            format_code = match.group(1)
+            return time.strftime(format_code, time.localtime(time.time()))
+
+        def LoRAapply(lb, inClip,inModel):
+            if (inClip == None and inModel == None) or lb==None or len(lb)==0:
+                return (inClip,inModel)
+
+            for LoRA in lb:
+                if LoRA["Active"]:
+                    lora_path = folder_paths.get_full_path("loras", LoRA["Name"])
+                    lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+            
+                    inModel, inClip = comfy.sd.load_lora_for_models(inModel, inClip, lora, LoRA["Model"], LoRA["TE"])
+
+            return (inClip,inModel)
+
+
+        def encode(clip, text, LoBo,Mod):
+            if clip is None:
+                clipery = []
+                clipery.append(folder_paths.get_full_path_or_raise("text_encoders", Encoder_1))
+                if use_Encoder_2:
+                    clipery.append(folder_paths.get_full_path_or_raise("text_encoders", Encoder_2))
+                if use_Encoder_3:
+                    clipery.append(folder_paths.get_full_path_or_raise("text_encoders", Encoder_3))
+                if use_Encoder_4:
+                    clipery.append(folder_paths.get_full_path_or_raise("text_encoders", Encoder_4))
+                
+                if len(clipery) == 0:
+                    raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
+                clip_type = getattr(comfy.sd.CLIPType, model_type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
+
+                model_options = {}
+                if load_device == "cpu":
+                    model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
+                clip = comfy.sd.load_clip(ckpt_paths=clipery, embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
+                clip.clip_layer(clip_skip)
+  
+            clip,Mod = LoRAapply(LoBo,clip,Mod)
+            tokens = clip.tokenize(text)
+            return (clip.encode_from_tokens_scheduled(tokens), clip, Mod)
+
+        def saveCond(Cond, Pth,folderPth, folderEx):
+            if not folderEx:
+                os.makedirs(folderPth, exist_ok=True)
+
+            Buffer = {}
+            print(f'{Cond}')
+            Buffer["Cond"] = Cond[0][0]
+            ExtraVars={}
+            if len(Cond[0])>1:
+                for val in Cond[0][1].keys():
+                    #print(f'{type(Cond[0][1][val])}')
+                    ExtraVars[val] = Cond[0][1][val]
+                    
+                #if "mask" in Cond[0][1]:
+                    #Buffer["Msk"] = Cond[0][1]["mask"]
+            Buffer["ExtraVars"] = torch.frombuffer(bytearray(json.dumps(ExtraVars), 'utf-8'), dtype=torch.uint8)
+            try:
+                save_file(Buffer, Pth)
+            except OSError:
+                print(str(f"Unable to save file `{Pth}`"))
+
+        def loadCond(Pth,):
+            loaded=None
+            try:
+                file = open(Pth, "rb")
+                data = file.read()
+                loaded = load_file(data)
+                file.close()
+            except OSError:
+                print(str(f"Unable to load file `{Pth}`"))
+            if not loaded==None:
+                ExtraVars = json.loads("".join(map(chr, loaded["ExtraVars"])))
+                print(f'{ExtraVars}')
+                return([[loaded["Cond"],ExtraVars]])
+            return
+
+        tokens = {'[time]': str(time.time())}
+
+        tokens['[time]'] = str(time.time())
+        if '.' in tokens['[time]']:
+            tokens['[time]'] = tokens['[time]'].split('.')[0]
+
+        for token, value in tokens.items():
+            if token.startswith('[time('):
+                continue
+            Output_Path = Output_Path.replace(token, value)
+
+        path = re.sub(r'\[time\((.*?)\)\]', replace_custom_time, Output_Path)
+
+        if Name == "":
+            Name="Buffer"
+        addPth = Name.replace('\ ','/').split("/")
+        filename = addPth.pop() 
+
+        for folder in addPth:
+            path = os.path.join(path, folder)
+
+        full_output_folder = path
+
+        if not os.path.isdir(path):
+            full_output_folder = os.path.join(folder_paths.get_output_directory(), path)
+        
+        file = f'{filename}.conditioning'
+        full_path = os.path.join(full_output_folder, file)
+
+        FileExist = os.path.exists(full_path)
+        PathExist = False
+        if FileExist:
+            PathExist = True
+        else:
+            PathExist = os.path.exists(full_output_folder)
+
+        if not Active:
+            c, c2,model = encode(clip,text,LoRABox,model)
+            if Override:
+                saveCond(c,full_path,full_output_folder,PathExist,)
+            return (c, c2,model,)
+        else:
+            if Override:
+                c, c2,model = encode(clip,text,LoRABox,model)
+                saveCond(c,full_path,full_output_folder,PathExist,)
+                return (c, c2,model,)
+            else:
+                if FileExist:
+                    clip,model = LoRAapply(LoRABox,clip,model)
+                    return(loadCond(full_path), clip,model,)
+                else:
+                    c, c2,model = encode(clip,text,LoRABox,model)
+                    saveCond(c,full_path,full_output_folder,PathExist,)
+                    return (c, c2,model,)
+            
+        return ()
+
 class TEAce:
     @classmethod
     def INPUT_TYPES(s):
@@ -718,6 +892,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadMaskMap": LoadMaskMap,
     "MaskMapPrompt": MaskMapPrompt,
     "MaskMapPromptMix": MaskMapPromptMix,
+    "BufferedEncoder": BufferedEncoder,
     "TEAce": TEAce,
 }
 
@@ -727,5 +902,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadMaskMap": "Mask-Map Loader (HMN)",
     "MaskMapPrompt": "Mask-Map Prompt (HMN)",
     "MaskMapPromptMix": "Mask-Map Prompt Mix (HMN)",
+    "BufferedEncoder": "Magical Encoder (HMN)",
     "TEAce": "Encode Ace (HMN)",
 }
